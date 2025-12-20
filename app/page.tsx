@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { MapPin, Users, User, Copy, RotateCcw, Star } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { MapPin, Users, User, Copy, RotateCcw, Star, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
-// Dynamically import the map component to avoid SSR issues with Leaflet
 const MapComponent = dynamic(() => import("@/components/map-component"), {
   ssr: false,
   loading: () => (
@@ -25,27 +24,17 @@ export interface Location {
   personNumber: 1 | 2 | 3
 }
 
+interface SessionData {
+  id: string
+  locations: Location[]
+}
+
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("solo")
   const [locations, setLocations] = useState<Location[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const supabaseRef = useRef(createClient())
 
-  // Create a new collaborative session
-  const createSession = async () => {
-    const supabase = supabaseRef.current
-    const { data, error } = await supabase.from("meeting_sessions").insert({}).select().single()
-
-    if (error) {
-      console.error("Error creating session:", error)
-      return null
-    }
-
-    return data.id
-  }
-
-  // Load session from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const sessionParam = urlParams.get("session")
@@ -57,57 +46,37 @@ export default function HomePage() {
     }
   }, [])
 
-  // Subscribe to real-time updates in collaborative mode
   useEffect(() => {
     if (mode !== "collaborative" || !sessionId) return
 
-    const supabase = supabaseRef.current
+    const interval = setInterval(() => {
+      loadSessionLocations(sessionId)
+    }, 1000) // Check every second
 
-    const channel = supabase
-      .channel(`session:${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "session_locations",
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          console.log("[v0] Real-time update received:", payload)
-          loadSessionLocations(sessionId)
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => clearInterval(interval)
   }, [mode, sessionId])
 
-  const loadSessionLocations = async (sid: string) => {
-    const supabase = supabaseRef.current
-    const { data, error } = await supabase
-      .from("session_locations")
-      .select("*")
-      .eq("session_id", sid)
-      .order("person_number")
-
-    if (error) {
-      console.error("Error loading locations:", error)
-      return
-    }
-
-    const locs: Location[] = data.map((loc) => ({
-      lat: loc.latitude,
-      lng: loc.longitude,
-      personNumber: loc.person_number as 1 | 2 | 3,
-    }))
-
-    setLocations(locs)
+  const generateSessionId = () => {
+    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   }
 
-  const handleModeChange = async (newMode: Mode) => {
+  const loadSessionLocations = (sid: string) => {
+    const stored = localStorage.getItem(`tritry-${sid}`)
+    if (stored) {
+      const data: SessionData = JSON.parse(stored)
+      setLocations(data.locations)
+    }
+  }
+
+  const saveSessionLocations = (sid: string, locs: Location[]) => {
+    const data: SessionData = {
+      id: sid,
+      locations: locs,
+    }
+    localStorage.setItem(`tritry-${sid}`, JSON.stringify(data))
+  }
+
+  const handleModeChange = (newMode: Mode) => {
     if (newMode === mode) return
 
     setMode(newMode)
@@ -115,25 +84,20 @@ export default function HomePage() {
     setSessionId(null)
 
     if (newMode === "collaborative") {
-      const newSessionId = await createSession()
-      if (newSessionId) {
-        setSessionId(newSessionId)
-        const url = `${window.location.origin}?session=${newSessionId}`
-        window.history.pushState({}, "", url)
-      }
+      const newSessionId = generateSessionId()
+      setSessionId(newSessionId)
+      saveSessionLocations(newSessionId, [])
+      const url = `${window.location.origin}?session=${newSessionId}`
+      window.history.pushState({}, "", url)
     } else {
       window.history.pushState({}, "", window.location.pathname)
     }
   }
 
-  const handleMapClick = async (lat: number, lng: number) => {
-    console.log("[v0] handleMapClick called, current locations:", locations.length)
-
+  const handleMapClick = (lat: number, lng: number) => {
     const nextPersonNumber = (locations.length + 1) as 1 | 2 | 3
-    console.log("[v0] Next person number:", nextPersonNumber)
 
     if (nextPersonNumber > 3) {
-      console.log("[v0] Already have 3 locations, ignoring click")
       return
     }
 
@@ -143,31 +107,19 @@ export default function HomePage() {
       personNumber: nextPersonNumber,
     }
 
-    console.log("[v0] Creating new location:", newLocation)
+    const updatedLocations = [...locations, newLocation]
 
     if (mode === "collaborative" && sessionId) {
-      const supabase = supabaseRef.current
-      const { error } = await supabase.from("session_locations").insert({
-        session_id: sessionId,
-        person_number: nextPersonNumber,
-        latitude: lat,
-        longitude: lng,
-      })
-
-      if (error) {
-        console.error("Error saving location:", error)
-        return
-      }
+      saveSessionLocations(sessionId, updatedLocations)
+      setLocations(updatedLocations)
     } else {
-      console.log("[v0] Solo mode: updating locations state")
-      setLocations([...locations, newLocation])
+      setLocations(updatedLocations)
     }
   }
 
-  const handleReset = async () => {
+  const handleReset = () => {
     if (mode === "collaborative" && sessionId) {
-      const supabase = supabaseRef.current
-      await supabase.from("session_locations").delete().eq("session_id", sessionId)
+      saveSessionLocations(sessionId, [])
     }
     setLocations([])
   }
@@ -221,6 +173,16 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
+
+            {mode === "collaborative" && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  협업 모드는 같은 기기의 브라우저에서만 작동합니다. 링크를 공유해도 다른 기기에서는 위치가 공유되지
+                  않습니다.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Status Card */}
             <Card className="bg-muted/50">

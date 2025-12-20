@@ -54,12 +54,8 @@ export default function MapComponent({
 
     // Add new click handler with current locations state
     const handleClick = (e: any) => {
-      console.log("[v0] Map clicked, current locations count:", locations.length)
       if (locations.length < 3) {
-        console.log("[v0] Adding marker at:", e.latlng.lat, e.latlng.lng)
         onMapClick(e.latlng.lat, e.latlng.lng)
-      } else {
-        console.log("[v0] All 3 locations already set, ignoring click")
       }
     }
 
