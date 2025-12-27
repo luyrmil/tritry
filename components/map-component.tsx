@@ -191,7 +191,6 @@ function calculateCircumcenter(locations: Location[]) {
   const [p1, p2, p3] = locations
 
   // Convert lat/lng to local Cartesian coordinates (meters)
-  // Use the first point as origin
   const originLat = p1.lat
   const originLng = p1.lng
 
@@ -228,8 +227,6 @@ function calculateCircumcenter(locations: Location[]) {
   const c2 = toCartesian(p2.lat, p2.lng)
   const c3 = toCartesian(p3.lat, p3.lng)
 
-  console.log("[v0] Cartesian coordinates:", { c1, c2, c3 })
-
   // Calculate circumcenter in Cartesian coordinates
   const x1 = c1.x
   const y1 = c1.y
@@ -243,7 +240,6 @@ function calculateCircumcenter(locations: Location[]) {
 
   // Handle degenerate case (collinear points)
   if (Math.abs(D) < 0.0001) {
-    console.log("[v0] Points are collinear, using centroid as fallback")
     return {
       circumcenter: {
         lat: (p1.lat + p2.lat + p3.lat) / 3,
@@ -261,12 +257,8 @@ function calculateCircumcenter(locations: Location[]) {
   const ux = (x1Sq * (y2 - y3) + x2Sq * (y3 - y1) + x3Sq * (y1 - y2)) / D
   const uy = (x1Sq * (x3 - x2) + x2Sq * (x1 - x3) + x3Sq * (x2 - x1)) / D
 
-  console.log("[v0] Circumcenter in Cartesian:", { ux, uy })
-
   // Convert back to lat/lng
   const circumcenter = fromCartesian(ux, uy)
-
-  console.log("[v0] Circumcenter in lat/lng:", circumcenter)
 
   // Calculate radius using Haversine formula from circumcenter to each point
   const R = 6371 // Earth's radius in km
@@ -284,15 +276,6 @@ function calculateCircumcenter(locations: Location[]) {
   const radius1 = haversineDistance(circumcenter.lat, circumcenter.lng, p1.lat, p1.lng)
   const radius2 = haversineDistance(circumcenter.lat, circumcenter.lng, p2.lat, p2.lng)
   const radius3 = haversineDistance(circumcenter.lat, circumcenter.lng, p3.lat, p3.lng)
-
-  console.log("[v0] Distance from circumcenter to Point 1:", radius1.toFixed(3), "km")
-  console.log("[v0] Distance from circumcenter to Point 2:", radius2.toFixed(3), "km")
-  console.log("[v0] Distance from circumcenter to Point 3:", radius3.toFixed(3), "km")
-  console.log(
-    "[v0] Max difference:",
-    Math.max(Math.abs(radius1 - radius2), Math.abs(radius2 - radius3), Math.abs(radius1 - radius3)).toFixed(3),
-    "km",
-  )
 
   // Use average of the three radii for final radius
   const radius = (radius1 + radius2 + radius3) / 3

@@ -4,8 +4,7 @@ import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { MapPin, Users, User, Copy, RotateCcw, Star, AlertCircle } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { MapPin, RotateCcw, Star } from "lucide-react"
 
 const MapComponent = dynamic(() => import("@/components/map-component"), {
   ssr: false,
@@ -16,83 +15,14 @@ const MapComponent = dynamic(() => import("@/components/map-component"), {
   ),
 })
 
-type Mode = "solo" | "collaborative"
-
 export interface Location {
   lat: number
   lng: number
   personNumber: 1 | 2 | 3
 }
 
-interface SessionData {
-  id: string
-  locations: Location[]
-}
-
 export default function HomePage() {
-  const [mode, setMode] = useState<Mode>("solo")
   const [locations, setLocations] = useState<Location[]>([])
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const sessionParam = urlParams.get("session")
-
-    if (sessionParam) {
-      setMode("collaborative")
-      setSessionId(sessionParam)
-      loadSessionLocations(sessionParam)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (mode !== "collaborative" || !sessionId) return
-
-    const interval = setInterval(() => {
-      loadSessionLocations(sessionId)
-    }, 1000) // Check every second
-
-    return () => clearInterval(interval)
-  }, [mode, sessionId])
-
-  const generateSessionId = () => {
-    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-  }
-
-  const loadSessionLocations = (sid: string) => {
-    const stored = localStorage.getItem(`tritry-${sid}`)
-    if (stored) {
-      const data: SessionData = JSON.parse(stored)
-      setLocations(data.locations)
-    }
-  }
-
-  const saveSessionLocations = (sid: string, locs: Location[]) => {
-    const data: SessionData = {
-      id: sid,
-      locations: locs,
-    }
-    localStorage.setItem(`tritry-${sid}`, JSON.stringify(data))
-  }
-
-  const handleModeChange = (newMode: Mode) => {
-    if (newMode === mode) return
-
-    setMode(newMode)
-    setLocations([])
-    setSessionId(null)
-
-    if (newMode === "collaborative") {
-      const newSessionId = generateSessionId()
-      setSessionId(newSessionId)
-      saveSessionLocations(newSessionId, [])
-      const url = `${window.location.origin}?session=${newSessionId}`
-      window.history.pushState({}, "", url)
-    } else {
-      window.history.pushState({}, "", window.location.pathname)
-    }
-  }
 
   const handleMapClick = (lat: number, lng: number) => {
     const nextPersonNumber = (locations.length + 1) as 1 | 2 | 3
@@ -107,29 +37,11 @@ export default function HomePage() {
       personNumber: nextPersonNumber,
     }
 
-    const updatedLocations = [...locations, newLocation]
-
-    if (mode === "collaborative" && sessionId) {
-      saveSessionLocations(sessionId, updatedLocations)
-      setLocations(updatedLocations)
-    } else {
-      setLocations(updatedLocations)
-    }
+    setLocations([...locations, newLocation])
   }
 
   const handleReset = () => {
-    if (mode === "collaborative" && sessionId) {
-      saveSessionLocations(sessionId, [])
-    }
     setLocations([])
-  }
-
-  const copyShareLink = () => {
-    if (!sessionId) return
-    const url = `${window.location.origin}?session=${sessionId}`
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -151,86 +63,15 @@ export default function HomePage() {
         {/* Sidebar */}
         <aside className="w-full lg:w-80 border-b lg:border-r lg:border-b-0 bg-card">
           <div className="p-6 space-y-6">
-            {/* Mode Selector */}
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground">모드 선택</h2>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant={mode === "solo" ? "default" : "outline"}
-                  onClick={() => handleModeChange("solo")}
-                  className="justify-start gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  혼자 지정하기
-                </Button>
-                <Button
-                  variant={mode === "collaborative" ? "default" : "outline"}
-                  onClick={() => handleModeChange("collaborative")}
-                  className="justify-start gap-2"
-                >
-                  <Users className="h-4 w-4" />
-                  친구와 함께
-                </Button>
-              </div>
-            </div>
-
-            {mode === "collaborative" && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  협업 모드는 같은 기기의 브라우저에서만 작동합니다. 링크를 공유해도 다른 기기에서는 위치가 공유되지
-                  않습니다.
-                </AlertDescription>
-              </Alert>
-            )}
-
             {/* Status Card */}
             <Card className="bg-muted/50">
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  {mode === "solo" ? (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">위치 지정 진행도</p>
-                      <p className="text-2xl font-bold text-primary">{locations.length}/3</p>
-                      <p className="text-xs text-muted-foreground">지도를 클릭하여 3개의 위치를 지정하세요</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">공유 링크</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={copyShareLink}
-                          disabled={!sessionId}
-                          className="w-full gap-2 bg-transparent"
-                        >
-                          <Copy className="h-3 w-3" />
-                          {copied ? "복사됨!" : "링크 복사"}
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">참여 현황</p>
-                        <div className="space-y-1">
-                          {[1, 2, 3].map((num) => {
-                            const hasLocation = locations.some((loc) => loc.personNumber === num)
-                            return (
-                              <div key={num} className="flex items-center gap-2 text-sm">
-                                <div
-                                  className={`h-2 w-2 rounded-full ${
-                                    hasLocation ? "bg-primary" : "bg-muted-foreground/30"
-                                  }`}
-                                />
-                                <span className={hasLocation ? "" : "text-muted-foreground"}>
-                                  Person {num} {hasLocation ? "✓" : "(대기중)"}
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">위치 지정 진행도</p>
+                    <p className="text-2xl font-bold text-primary">{locations.length}/3</p>
+                    <p className="text-xs text-muted-foreground">지도를 클릭하여 3개의 위치를 지정하세요</p>
+                  </div>
 
                   {/* Location List */}
                   {locations.length > 0 && (
@@ -324,54 +165,95 @@ function ResultCard({ locations }: { locations: Location[] }) {
 function calculateCircumcenter(locations: Location[]) {
   const [p1, p2, p3] = locations
 
-  // Convert to radians
-  const lat1 = (p1.lat * Math.PI) / 180
-  const lon1 = (p1.lng * Math.PI) / 180
-  const lat2 = (p2.lat * Math.PI) / 180
-  const lon2 = (p2.lng * Math.PI) / 180
-  const lat3 = (p3.lat * Math.PI) / 180
-  const lon3 = (p3.lng * Math.PI) / 180
+  // Convert lat/lng to local Cartesian coordinates (meters)
+  const originLat = p1.lat
+  const originLng = p1.lng
 
-  // Convert to Cartesian coordinates
-  const x1 = Math.cos(lat1) * Math.cos(lon1)
-  const y1 = Math.cos(lat1) * Math.sin(lon1)
-  const z1 = Math.sin(lat1)
+  const toCartesian = (lat: number, lng: number) => {
+    const R = 6371000 // Earth's radius in meters
+    const latRad = (lat * Math.PI) / 180
+    const lngRad = (lng * Math.PI) / 180
+    const originLatRad = (originLat * Math.PI) / 180
+    const originLngRad = (originLng * Math.PI) / 180
 
-  const x2 = Math.cos(lat2) * Math.cos(lon2)
-  const y2 = Math.cos(lat2) * Math.sin(lon2)
-  const z2 = Math.sin(lat2)
+    // Project to meters using equirectangular approximation
+    const x = R * (lngRad - originLngRad) * Math.cos((latRad + originLatRad) / 2)
+    const y = R * (latRad - originLatRad)
 
-  const x3 = Math.cos(lat3) * Math.cos(lon3)
-  const y3 = Math.cos(lat3) * Math.sin(lon3)
-  const z3 = Math.sin(lat3)
-
-  // Calculate average (centroid as approximation for small distances)
-  const x = (x1 + x2 + x3) / 3
-  const y = (y1 + y2 + y3) / 3
-  const z = (z1 + z2 + z3) / 3
-
-  // Convert back to lat/lng
-  const lon = Math.atan2(y, x)
-  const hyp = Math.sqrt(x * x + y * y)
-  const lat = Math.atan2(z, hyp)
-
-  const circumcenter = {
-    lat: (lat * 180) / Math.PI,
-    lng: (lon * 180) / Math.PI,
+    return { x, y }
   }
 
-  // Calculate radius using haversine formula
+  const fromCartesian = (x: number, y: number) => {
+    const R = 6371000 // Earth's radius in meters
+    const originLatRad = (originLat * Math.PI) / 180
+    const originLngRad = (originLng * Math.PI) / 180
+
+    const latRad = y / R + originLatRad
+    const lngRad = x / (R * Math.cos((latRad + originLatRad) / 2)) + originLngRad
+
+    return {
+      lat: (latRad * 180) / Math.PI,
+      lng: (lngRad * 180) / Math.PI,
+    }
+  }
+
+  // Convert all points to Cartesian
+  const c1 = toCartesian(p1.lat, p1.lng)
+  const c2 = toCartesian(p2.lat, p2.lng)
+  const c3 = toCartesian(p3.lat, p3.lng)
+
+  // Calculate circumcenter in Cartesian coordinates
+  const x1 = c1.x
+  const y1 = c1.y
+  const x2 = c2.x
+  const y2 = c2.y
+  const x3 = c3.x
+  const y3 = c3.y
+
+  // Calculate D = 2(x1(y2-y3) + x2(y3-y1) + x3(y1-y2))
+  const D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+
+  // Handle degenerate case (collinear points)
+  if (Math.abs(D) < 0.0001) {
+    return {
+      circumcenter: {
+        lat: (p1.lat + p2.lat + p3.lat) / 3,
+        lng: (p1.lng + p2.lng + p3.lng) / 3,
+      },
+      radius: 0,
+    }
+  }
+
+  // Calculate circumcenter coordinates using the formula
+  const x1Sq = x1 * x1 + y1 * y1
+  const x2Sq = x2 * x2 + y2 * y2
+  const x3Sq = x3 * x3 + y3 * y3
+
+  const ux = (x1Sq * (y2 - y3) + x2Sq * (y3 - y1) + x3Sq * (y1 - y2)) / D
+  const uy = (x1Sq * (x3 - x2) + x2Sq * (x1 - x3) + x3Sq * (x2 - x1)) / D
+
+  // Convert back to lat/lng
+  const circumcenter = fromCartesian(ux, uy)
+
+  // Calculate radius using Haversine formula from circumcenter to each point
   const R = 6371 // Earth's radius in km
-  const dLat = ((p1.lat - circumcenter.lat) * Math.PI) / 180
-  const dLon = ((p1.lng - circumcenter.lng) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((circumcenter.lat * Math.PI) / 180) *
-      Math.cos((p1.lat * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  const radius = R * c
+
+  const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  const radius1 = haversineDistance(circumcenter.lat, circumcenter.lng, p1.lat, p1.lng)
+  const radius2 = haversineDistance(circumcenter.lat, circumcenter.lng, p2.lat, p2.lng)
+  const radius3 = haversineDistance(circumcenter.lat, circumcenter.lng, p3.lat, p3.lng)
+
+  // Use average of the three radii for final radius
+  const radius = (radius1 + radius2 + radius3) / 3
 
   return { circumcenter, radius }
 }
