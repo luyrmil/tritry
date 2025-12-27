@@ -190,54 +190,112 @@ export default function MapComponent({
 function calculateCircumcenter(locations: Location[]) {
   const [p1, p2, p3] = locations
 
-  // Convert to radians
-  const lat1 = (p1.lat * Math.PI) / 180
-  const lon1 = (p1.lng * Math.PI) / 180
-  const lat2 = (p2.lat * Math.PI) / 180
-  const lon2 = (p2.lng * Math.PI) / 180
-  const lat3 = (p3.lat * Math.PI) / 180
-  const lon3 = (p3.lng * Math.PI) / 180
+  // Convert lat/lng to local Cartesian coordinates (meters)
+  // Use the first point as origin
+  const originLat = p1.lat
+  const originLng = p1.lng
 
-  // Convert to Cartesian coordinates
-  const x1 = Math.cos(lat1) * Math.cos(lon1)
-  const y1 = Math.cos(lat1) * Math.sin(lon1)
-  const z1 = Math.sin(lat1)
+  const toCartesian = (lat: number, lng: number) => {
+    const R = 6371000 // Earth's radius in meters
+    const latRad = (lat * Math.PI) / 180
+    const lngRad = (lng * Math.PI) / 180
+    const originLatRad = (originLat * Math.PI) / 180
+    const originLngRad = (originLng * Math.PI) / 180
 
-  const x2 = Math.cos(lat2) * Math.cos(lon2)
-  const y2 = Math.cos(lat2) * Math.sin(lon2)
-  const z2 = Math.sin(lat2)
+    // Project to meters using equirectangular approximation
+    const x = R * (lngRad - originLngRad) * Math.cos((latRad + originLatRad) / 2)
+    const y = R * (latRad - originLatRad)
 
-  const x3 = Math.cos(lat3) * Math.cos(lon3)
-  const y3 = Math.cos(lat3) * Math.sin(lon3)
-  const z3 = Math.sin(lat3)
-
-  // Calculate average (centroid as approximation)
-  const x = (x1 + x2 + x3) / 3
-  const y = (y1 + y2 + y3) / 3
-  const z = (z1 + z2 + z3) / 3
-
-  // Convert back to lat/lng
-  const lon = Math.atan2(y, x)
-  const hyp = Math.sqrt(x * x + y * y)
-  const lat = Math.atan2(z, hyp)
-
-  const circumcenter = {
-    lat: (lat * 180) / Math.PI,
-    lng: (lon * 180) / Math.PI,
+    return { x, y }
   }
 
-  // Calculate radius
+  const fromCartesian = (x: number, y: number) => {
+    const R = 6371000 // Earth's radius in meters
+    const originLatRad = (originLat * Math.PI) / 180
+    const originLngRad = (originLng * Math.PI) / 180
+
+    const latRad = y / R + originLatRad
+    const lngRad = x / (R * Math.cos((latRad + originLatRad) / 2)) + originLngRad
+
+    return {
+      lat: (latRad * 180) / Math.PI,
+      lng: (lngRad * 180) / Math.PI,
+    }
+  }
+
+  // Convert all points to Cartesian
+  const c1 = toCartesian(p1.lat, p1.lng)
+  const c2 = toCartesian(p2.lat, p2.lng)
+  const c3 = toCartesian(p3.lat, p3.lng)
+
+  console.log("[v0] Cartesian coordinates:", { c1, c2, c3 })
+
+  // Calculate circumcenter in Cartesian coordinates
+  const x1 = c1.x
+  const y1 = c1.y
+  const x2 = c2.x
+  const y2 = c2.y
+  const x3 = c3.x
+  const y3 = c3.y
+
+  // Calculate D = 2(x1(y2-y3) + x2(y3-y1) + x3(y1-y2))
+  const D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+
+  // Handle degenerate case (collinear points)
+  if (Math.abs(D) < 0.0001) {
+    console.log("[v0] Points are collinear, using centroid as fallback")
+    return {
+      circumcenter: {
+        lat: (p1.lat + p2.lat + p3.lat) / 3,
+        lng: (p1.lng + p2.lng + p3.lng) / 3,
+      },
+      radius: 0,
+    }
+  }
+
+  // Calculate circumcenter coordinates using the formula
+  const x1Sq = x1 * x1 + y1 * y1
+  const x2Sq = x2 * x2 + y2 * y2
+  const x3Sq = x3 * x3 + y3 * y3
+
+  const ux = (x1Sq * (y2 - y3) + x2Sq * (y3 - y1) + x3Sq * (y1 - y2)) / D
+  const uy = (x1Sq * (x3 - x2) + x2Sq * (x1 - x3) + x3Sq * (x2 - x1)) / D
+
+  console.log("[v0] Circumcenter in Cartesian:", { ux, uy })
+
+  // Convert back to lat/lng
+  const circumcenter = fromCartesian(ux, uy)
+
+  console.log("[v0] Circumcenter in lat/lng:", circumcenter)
+
+  // Calculate radius using Haversine formula from circumcenter to each point
   const R = 6371 // Earth's radius in km
-  const dLat = ((p1.lat - circumcenter.lat) * Math.PI) / 180
-  const dLon = ((p1.lng - circumcenter.lng) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((circumcenter.lat * Math.PI) / 180) *
-      Math.cos((p1.lat * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  const radius = R * c
+
+  const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  const radius1 = haversineDistance(circumcenter.lat, circumcenter.lng, p1.lat, p1.lng)
+  const radius2 = haversineDistance(circumcenter.lat, circumcenter.lng, p2.lat, p2.lng)
+  const radius3 = haversineDistance(circumcenter.lat, circumcenter.lng, p3.lat, p3.lng)
+
+  console.log("[v0] Distance from circumcenter to Point 1:", radius1.toFixed(3), "km")
+  console.log("[v0] Distance from circumcenter to Point 2:", radius2.toFixed(3), "km")
+  console.log("[v0] Distance from circumcenter to Point 3:", radius3.toFixed(3), "km")
+  console.log(
+    "[v0] Max difference:",
+    Math.max(Math.abs(radius1 - radius2), Math.abs(radius2 - radius3), Math.abs(radius1 - radius3)).toFixed(3),
+    "km",
+  )
+
+  // Use average of the three radii for final radius
+  const radius = (radius1 + radius2 + radius3) / 3
 
   return { circumcenter, radius }
 }

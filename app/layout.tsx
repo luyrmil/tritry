@@ -9,8 +9,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "TRITRY | Meeting Point Finder",
-  description: "세 지점의 외심을 계산하여 최적의 만남 장소(Spot)를 찾아드립니다.",
-  generator: "v0.app",
+  description: "억울한 수도권인들과 양심없는 서울 사람들을 위한...",
   icons: {
     icon: [
       {
@@ -28,6 +27,7 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
+    generator: 'v0.app'
 }
 
 export default function RootLayout({
