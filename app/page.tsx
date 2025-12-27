@@ -68,7 +68,7 @@ export default function HomePage() {
               <CardContent className="pt-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">위치 지정 진행도</p>
+                    <p className="text-sm font-medium">위치 지정 : </p>
                     <p className="text-2xl font-bold text-primary">{locations.length}/3</p>
                     <p className="text-xs text-muted-foreground">지도를 클릭하여 3개의 위치를 지정하세요</p>
                   </div>
@@ -136,7 +136,7 @@ function ResultCard({ locations }: { locations: Location[] }) {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-            <p className="font-semibold">Spot</p>
+            <p className="font-semibold">여기서 만나자...</p>
           </div>
           {circumcenter && radius && (
             <div className="space-y-2 text-sm">
@@ -147,11 +147,11 @@ function ResultCard({ locations }: { locations: Location[] }) {
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">Spot 반지름</p>
+                <p className="text-muted-foreground">반지름</p>
                 <p className="font-semibold">{radius.toFixed(2)} km</p>
               </div>
               <p className="text-xs text-muted-foreground pt-2">
-                세 지점에서 모두 같은 거리에 있는 최적의 만남 장소입니다.
+                모두가 공평한 곳이예요. ㅎㅎ
               </p>
             </div>
           )}
