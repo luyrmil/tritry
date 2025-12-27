@@ -150,8 +150,9 @@ function ResultCard({ locations }: { locations: Location[] }) {
                 <p className="text-muted-foreground">반지름</p>
                 <p className="font-semibold">{radius.toFixed(2)} km</p>
               </div>
-              <p className="text-xs text-muted-foreground pt-2">
-                모두가 공평한 곳이예요. ㅎㅎ
+              <p className="text-xs text-muted-foreground pt-2">ㅎㅎ</p>
+              <p className="text-muted-foreground">
+                추천 영상: https://www.youtube.com/shorts/UytoZWPLyZ4
               </p>
             </div>
           )}
