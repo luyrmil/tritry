@@ -8,11 +8,20 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "TRITRY | 억울한 수도권인들과 양심없는 서울 사람들을 위한 가이드라인",
+  metadataBase: new URL("https://tritry.app"),
+  title: {
+    default: "TRITRY | 억울한 수도권인들과 양심없는 서울 사람들을 위한 가이드라인",
+    template: "%s | TRITRY",
+  },
   description: "낄낄",
   icons: {
     icon: "/icon.svg",
     apple: "/apple-icon.png",
+  },
+  openGraph: {
+    title: "TRITRY | 억울한 수도권인들과 양심없는 서울 사람들을 위한 가이드라인",
+    description: "낄낄",
+    locale: "ko_KR",
   },
     generator: 'v0.app'
 }
